@@ -12,8 +12,7 @@ import uuid
 
 synapseclient.core.cache.CACHE_ROOT_DIR = '/tmp/.synapseCache'
 syn = synapseclient.Synapse()
-syn.login(email=os.environ.get('username', 'username variable is not set.'),
-        apiKey=os.environ.get('apiKey', 'apiKey variable is not set.'),silent=True)
+syn.login(authToken=os.environ.get('synapse_pat', 'synapse_pat variable is not set.'), silent=True)
 
 def lambda_handler(event, context):
     """ Lambda Function to be triggered by S3 Storage.
