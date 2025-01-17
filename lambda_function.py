@@ -1,7 +1,6 @@
 import json
 import os
 import sys
-
 from urllib.parse import unquote_plus
 import boto3
 import mimetypes
@@ -9,10 +8,26 @@ import synapseclient
 import tempfile
 import uuid
 
+ssm_client = boto3.client('ssm')
 
 synapseclient.core.cache.CACHE_ROOT_DIR = '/tmp/.synapseCache'
 syn = synapseclient.Synapse()
-syn.login(authToken=os.environ.get('synapse_pat', 'synapse_pat variable is not set.'), silent=True)
+
+def get_synapse_pat():
+    """Fetch the Synapse Personal Access Token from SSM Parameter Store."""
+    try:
+        parameter = ssm_client.get_parameter(Name='/HTAN/SynapseSync/PAT', WithDecryption=True)
+        return parameter['Parameter']['Value']
+    except Exception as e:
+        print(f"Error fetching PAT from SSM: {e}")
+        raise
+
+try:
+    synapse_pat = get_synapse_pat()
+    syn.login(authToken=synapse_pat, silent=True)
+except Exception as e:
+    print(f"Failed to log in to Synapse: {e}")
+    sys.exit(1)
 
 def lambda_handler(event, context):
     """ Lambda Function to be triggered by S3 Storage.
@@ -43,7 +58,6 @@ def create_filehandle(event, filename, bucket, key, project_id):
     if file_id != None:
         targetMD5 = syn.get(file_id, downloadFile=False)['md5'];
 
-    # create filehandle if it does not exist in Synapse or if existing file was modified (check md5):
     if file_id == None or eTag != targetMD5: 
         size = event['Records'][0]['s3']['object']['size']
         contentType = mimetypes.guess_type(filename, strict=False)[0]
@@ -69,7 +83,6 @@ def get_parent_folder(project_id, key):
     for f in folders:
         folder_id = syn.findEntityId(f, parent_id)
         if folder_id == None:
-            # create folder: 
             folder_id = syn.store(synapseclient.Folder(name=f, parent=parent_id), forceVersion=False)['id']
         parent_id = folder_id
 
